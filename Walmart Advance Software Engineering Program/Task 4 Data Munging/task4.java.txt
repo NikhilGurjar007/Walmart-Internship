@@ -1,0 +1,107 @@
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+public class ShipmentDatabase {
+
+    public static void createTables(Connection connection) throws SQLException {
+        // Create the first table 'shipping_data_0' if it doesn't exist
+        String createTable0 = """
+                CREATE TABLE IF NOT EXISTS shipping_data_0 (
+                    origin_warehouse TEXT,
+                    destination_store TEXT,
+                    product TEXT,
+                    on_time TEXT,
+                    product_quantity INTEGER,
+                    driver_identifier TEXT
+                )
+                """;
+        try (PreparedStatement preparedStatement = connection.prepareStatement(createTable0)) {
+            preparedStatement.executeUpdate();
+        }
+
+        // Create the second table 'shipping_data_1' if it doesn't exist
+        String createTable1 = """
+                CREATE TABLE IF NOT EXISTS shipping_data_1 (
+                    shipment_identifier TEXT,
+                    product TEXT,
+                    on_time TEXT,
+                    origin_warehouse TEXT,
+                    destination_store TEXT
+                )
+                """;
+        try (PreparedStatement preparedStatement = connection.prepareStatement(createTable1)) {
+            preparedStatement.executeUpdate();
+        }
+    }
+
+    public static void insertShippingData0(Connection connection) throws SQLException, IOException {
+        // Read data from 'shipping_data_0.csv' and insert into 'shipping_data_0' table
+        try (BufferedReader reader = new BufferedReader(new FileReader("data/shipping_data_0.csv"))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] data = line.split(",");
+                String query = "INSERT INTO shipping_data_0 (origin_warehouse, destination_store, product, on_time, product_quantity, driver_identifier) VALUES (?, ?, ?, ?, ?, ?)";
+                try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
+                    for (int i = 0; i < data.length; i++) {
+                        preparedStatement.setString(i + 1, data[i]);
+                    }
+                    preparedStatement.executeUpdate();
+                }
+            }
+        }
+    }
+
+    public static void insertShippingData1(Connection connection) throws SQLException, IOException {
+        // Read data from 'shipping_data_2.csv' and store rows in a list
+        List<String[]> shippingData2Rows = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(new FileReader("data/shipping_data_2.csv"))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                shippingData2Rows.add(line.split(","));
+            }
+        }
+
+        // Read data from 'shipping_data_1.csv' and insert into 'shipping_data_1' table
+        try (BufferedReader reader = new BufferedReader(new FileReader("data/shipping_data_1.csv"))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] data = line.split(",");
+                String shipmentIdentifier = data[0];
+                for (String[] row : shippingData2Rows) {
+                    if (row[0].equals(shipmentIdentifier)) {
+                        String originWarehouse = row[1];
+                        String destinationStore = row[2];
+                        String query = "INSERT INTO shipping_data_1 (shipment_identifier, product, on_time, origin_warehouse, destination_store) VALUES (?, ?, ?, ?, ?)";
+                        try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
+                            preparedStatement.setString(1, shipmentIdentifier);
+                            preparedStatement.setString(2, data[1]);
+                            preparedStatement.setString(3, data[2]);
+                            preparedStatement.setString(4, originWarehouse);
+                            preparedStatement.setString(5, destinationStore);
+                            preparedStatement.executeUpdate();
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:shipment_database.db")) {
+            createTables(connection);  // Create the necessary tables
+
+            insertShippingData0(connection);
+            insertShippingData1(connection);
+        } catch (SQLException | IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
